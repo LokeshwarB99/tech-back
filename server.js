@@ -1,15 +1,13 @@
+
 const express = require("express");
 const mysql2 = require("mysql2");
 const cors = require("cors");
 const CryptoJS = require("crypto-js");
 const mysqlPromise = require("mysql2/promise");
 
-const multer = require("multer");
-
 const app = express();
 app.use(cors());
 app.use(express.json());
-
 const pool = mysql2.createPool(
   "mysql://root:JKUsPQzPRLEoURHkDoLvetuRPjKtaIVq@monorail.proxy.rlwy.net:23238/railway"
 );
@@ -24,85 +22,6 @@ const promisePool = mysqlPromise.createPool({
   waitForConnections: true,
   queueLimit: 0,
 });
-
-// const pool = mysql2.createPool({
-//   host: "localhost",
-//   user: "root",
-//   password: "1080", // Replace with your local MySQL password
-//   database: "technex", // Replace with your local database name
-//   port: 3306, // Default MySQL port
-//   waitForConnections: true,
-//   connectionLimit: 10,
-//   queueLimit: 0,
-// });
-
-// const promisePool = mysqlPromise.createPool({
-//   host: "localhost",
-//   user: "root",
-//   password: "1080", // Replace with your local MySQL password
-//   database: "technex", // Replace with your local database name
-//   port: 3306, // Default MySQL port
-//   waitForConnections: true,
-//   connectionLimit: 10,
-//   queueLimit: 0,
-// });
-
-
-
-
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB file size limit
-});
-
-app.post("/bs", upload.single("image"), (req, res) => {
-  try {
-    const imageId = `${Date.now()}_${req.file.originalname}`;
-    const imageData = req.file.buffer;
-
-    pool.query(
-      "INSERT INTO Images (image_id, image) VALUES (?, ?)",
-      [imageId, imageData],
-      (error, results) => {
-        if (error) {
-          console.error("Error inserting image into database:", error);
-          return res
-            .status(500)
-            .json({ message: "Error uploading image", error });
-        }
-        res
-          .status(200)
-          .json({ message: "Image uploaded successfully", results });
-      }
-    );
-  } catch (error) {
-    console.error("Unexpected error:", error);
-    res.status(500).json({ message: "Unexpected error", error });
-  }
-});
-
-app.get("/bs/latest", (req, res) => {
-  pool.query(
-    "SELECT image FROM technical_questions where id = 39",
-    (error, results) => {
-      if (error) {
-        console.error("Error fetching image from database:", error);
-        return res.status(500).json({ message: "Error fetching image", error });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ message: "No image found" });
-      }
-      const imageData = results[0].image;
-      res.writeHead(200, {
-        "Content-Type": "image/jpeg",
-        "Content-Length": imageData.length,
-      });
-      res.end(imageData);
-    }
-  );
-});
-
 
 // user content
 app.post("/register/", (req, res) => {
@@ -383,6 +302,7 @@ app.post("/questions/aptm/", async (req, res) => {
 //test schedule
 app.post("/test/schedule", (req, res) => {
   const { testid, tech, apt, verb, testname, start, end, duration } = req.body;
+
   pool.query(
     "select * from test_table where test_id=?",
     testid,
@@ -448,6 +368,42 @@ app.post("/test/schedule", (req, res) => {
   );
 });
 //get test
+// app.get("/get_test/:email", (req, res) => {
+//   const email = req.params.email;
+
+//   pool.query(
+//     "SELECT test_id FROM test_activity WHERE user_id=? AND status=false",
+//     [email],
+//     (err, result) => {
+//       if (err) {
+//         console.log(err);
+//         res.status(500).send("Internal Server Error");
+//         return;
+//       }
+
+//       if (result.length < 1) {
+//         res.send("No test scheduled");
+//       } else {
+//         const testIds = result.map((row) => row.test_id);
+
+//         pool.query(
+//           "SELECT test_id,test_name,duration,start_t,end_t FROM test_table WHERE test_id IN (?)",
+//           [testIds],
+//           (err, testDetails) => {
+//             if (err) {
+//               console.log(err);
+//               res.status(500).send("Internal Server Error");
+//               return;
+//             }
+
+//             res.send(testDetails);
+//           }
+//         );
+//       }
+//     }
+//   );
+// });
+
 app.get("/get_test/:email", (req, res) => {
   const email = req.params.email;
 
@@ -487,21 +443,15 @@ app.get("/get_test/:email", (req, res) => {
 app.get("/get_question/:id", (req, res) => {
   const id = req.params.id;
 
-  // Query to fetch test details including question IDs, test_name, and duration
   pool.query(
-    "SELECT tech_q, apt_q, verb_q, test_name, duration FROM test_table WHERE test_id=?",
+    "SELECT tech_q, apt_q, verb_q FROM test_table WHERE test_id=?",
     id,
     (err, result) => {
       if (err) {
         console.error(err);
         res.status(500).send("Internal Server Error");
       } else {
-        if (result.length === 0) {
-          res.status(404).send("Test not found");
-          return;
-        }
-
-        const { tech_q, apt_q, verb_q, test_name, duration } = result[0];
+        const { tech_q, apt_q, verb_q } = result[0];
 
         // Function to fetch questions from a specific table based on IDs
         const fetchQuestions = (table, ids) => {
@@ -538,13 +488,8 @@ app.get("/get_question/:id", (req, res) => {
               ...aptQuestions,
               ...verbQuestions,
             ];
-
-            // Respond with the test details and questions
-            res.json({
-              test_name,
-              duration,
-              questions: allQuestions,
-            });
+            console.log(allQuestions.length);
+            res.json(allQuestions);
           })
           .catch((error) => {
             console.error(error);
@@ -555,93 +500,15 @@ app.get("/get_question/:id", (req, res) => {
   );
 });
 
-// add Quesition
-
-app.post("/api/tech_questions", upload.single("image"), (req, res) => {
-  const { question, options, type, topic, difficulty, company, answer } =
-    JSON.parse(req.body.question);
-  const image = req.file ? req.file.buffer : null; // handle uploaded image data
-
-  pool.query(
-    "INSERT INTO technical_questions (question, options, type, topic, difficulty, company, answer, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    [
-      question,
-      JSON.stringify(options),
-      type,
-      topic,
-      difficulty,
-      company,
-      JSON.stringify(answer),
-      image,
-    ],
-    (err, result) => {
-      if (err) {
-        console.error("Error inserting question into database:", err);
-        res.status(500).send("Error saving the question");
-      } else {
-        console.log("Question saved successfully");
-        res.send("Question saved successfully");
-      }
-    }
-  );
-});
-
-
-app.post("/api/verb_questions/", (req, res) => {
-  pool.query(
-    "insert into verbal_questions(question,options,type,topic,difficulty,company,answer) values(?,?,?,?,?,?,?)",
-    [
-      req.body.question,
-      JSON.stringify(req.body.options),
-      req.body.type,
-      req.body.topic,
-      req.body.difficulty,
-      req.body.company,
-      JSON.stringify(req.body.answer),
-    ],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-      } else {
-        res.send("ok");
-      }
-    }
-  );
-});
-
-app.post("/api/apt_questions/", (req, res) => {
-  pool.query(
-    "insert into aptitude_questions(question,options,type,topic,difficulty,company,answer) values(?,?,?,?,?,?,?)",
-    [
-      req.body.question,
-      JSON.stringify(req.body.options),
-      req.body.type,
-      req.body.topic,
-      req.body.difficulty,
-      req.body.company,
-      JSON.stringify(req.body.answer),
-    ],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-      } else {
-        res.send("ok");
-      }
-    }
-  );
-});
-
-
 //adding score
 app.post("/addscore/:id/:id2", (req, res) => {
   const id1 = req.params.id;
   const id2 = req.params.id2;
   const score = req.body.score;
-  const time = req.body.score;
-  
+
   // Use parameterized queries to prevent SQL injection
   pool.query(
-    "UPDATE test_activity SET status = true, score = ? WHERE email = ? AND test_id = ?  ",
+    "UPDATE test_activity SET status = true, score = ? WHERE user_id = ? AND test_id = ?  ",
     [score, id2, id1],
     (err, result) => {
       if (err) {
@@ -657,7 +524,7 @@ app.post("/addscore/:id/:id2", (req, res) => {
 app.get("/check/:test/:user", (req, res) => {
   const { test, user } = req.params;
   pool.query(
-    "select status from test_activity where email=? and test_id=?",
+    "select status from test_activity where user_id=? and test_id=?",
     [user, test],
     (err, result) => {
       if (err) {
@@ -677,52 +544,6 @@ app.get("/leaderboard/", (req, res) => {
       console.log(err);
     } else {
       res.json(result);
-    }
-  });
-});
-
-app.get("/testl/:id", (req, res) => {
-  const id = req.params.id;
-  pool.query(
-    "select * from test_activity where test_id=?",
-    [id],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-      } else {
-        res.send(result);
-      }
-    }
-  );
-});
-
-app.get("/get_technical_questions", (req, res) => {
-  pool.query("select id, question,options, type, topic, difficulty, company, answer from technical_questions", (err, result) => {
-    if (err) {
-      console.log(err);
-    } else {
-      console.log(result)
-      res.send(result);
-    }
-  });
-});
-
-app.get("/get_aptitude_questions", (req, res) => {
-  pool.query("select id, question,options, type, topic, difficulty, company, answer from aptitude_questions", (err, result) => {
-    if (err) {
-      console.log(err);
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-app.get("/get_verbal_questions", (req, res) => {
-  pool.query("select id, question,options, type, topic, difficulty, company, answer from verbal_questions", (err, result) => {
-    if (err) {
-      console.log(err);
-    } else {
-      res.send(result);
     }
   });
 });

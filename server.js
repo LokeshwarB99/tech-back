@@ -524,7 +524,7 @@ app.post("/addscore/:id/:id2", (req, res) => {
 app.get("/check/:test/:user", (req, res) => {
   const { test, user } = req.params;
   pool.query(
-    "select status from test_activity where user_id=? and test_id=?",
+    "select status from test_activity where email=? and test_id=?",
     [user, test],
     (err, result) => {
       if (err) {
